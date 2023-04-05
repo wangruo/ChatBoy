@@ -1,6 +1,5 @@
 package com.aro.chatboy;
 
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -16,6 +15,8 @@ import com.theokanning.openai.service.OpenAiService;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class FirstFragment extends Fragment {
 
@@ -24,10 +25,7 @@ public class FirstFragment extends Fragment {
     StringBuilder builder = new StringBuilder();
 
     @Override
-    public View onCreateView(
-            LayoutInflater inflater, ViewGroup container,
-            Bundle savedInstanceState
-    ) {
+    public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 
         binding = FragmentFirstBinding.inflate(inflater, container, false);
 
@@ -74,18 +72,21 @@ public class FirstFragment extends Fragment {
         binding.displayBox.setText(builder.toString());
 
         // 启动后台获取任务
-        new HttpAsyncTask(msg).execute();
+        ExecutorService executorService = Executors.newFixedThreadPool(1);
+        executorService.execute(new HttpAsyncTask(msg));
     }
 
 
-    private class HttpAsyncTask extends AsyncTask<String, Void, String> {
+    private class HttpAsyncTask implements Runnable {
         String msg;
 
         public HttpAsyncTask(String msg_) {
             msg = msg_;
         }
+
         @Override
-        protected String doInBackground(String... messages) {
+        public void run() {
+            StringBuilder responseBuilder = new StringBuilder();
             try {
                 ChatMessage chatMessage = new ChatMessage();
                 chatMessage.setRole("user");
@@ -95,20 +96,16 @@ public class FirstFragment extends Fragment {
 
                 ChatCompletionRequest chatCompletionRequest = ChatCompletionRequest.builder().messages(dataList).model("gpt-3.5-turbo").build();
 
-                StringBuilder responseBuilder = new StringBuilder();
 
                 OpenAiService service = new OpenAiService("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");
                 service.createChatCompletion(chatCompletionRequest).getChoices().forEach(choice -> responseBuilder.append(choice.getMessage().getContent()).append("\n"));
 
-                return responseBuilder.toString();
             } catch (Exception e) {
-                return e.toString();
+                responseBuilder.append(e).append("\n");
             }
-        }
 
-        @Override
-        protected void onPostExecute(String result) {
-            if (result != null) {
+            String result = responseBuilder.toString();
+            if (!result.isEmpty()) {
                 builder.append(result).append("\n");
                 binding.displayBox.setText(builder.toString());
 
